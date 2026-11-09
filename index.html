@@ -214,15 +214,15 @@ function montarFiltros(){
 const COLS = [
  {k:'pedido',t:'Pedido'},{k:'os',t:'OS',num:1},{k:'nf',t:'NF'},{k:'fabricante',t:'Fabric.'},{k:'dias',t:'Dias',num:1},
  {k:'produto',t:'Produto / COD'},{k:'btus',t:'BTUs',num:1},{k:'nfFab',t:'NF fabricante'},
- {k:'custo',t:'Preço custo',num:1},{k:'venda',t:'Preço venda',num:1},{k:'desconto',t:'% desc.',num:1},{k:'liq',t:'Liquidação',num:1},
+ {k:'custo',t:'Preço custo',num:1},{k:'venda',t:'Preço venda (+30%)',num:1},{k:'desconto',t:'% desc.',num:1},{k:'liq',t:'Liquidação',num:1},
  {k:'setor',t:'Setor'},{k:'fotos',t:'Fotos'},{k:'defeito',t:'Defeito'},{k:'cliente',t:'Cliente'}
 ];
 
 function dias(o){ const m=/(\d{2})\/(\d{2})\/(\d{4})/.exec(o.dtAbert||''); if(!m) return ''; return Math.max(0,Math.floor((Date.now()-new Date(+m[3],m[2]-1,+m[1]))/864e5)); }
 function enriquecer(o){
   const p = PROD[o.cod]||{};
-  const custo = p.custo===''||p.custo==null?null:Number(p.custo);
-  const venda = p.venda===''||p.venda==null?null:Number(p.venda);
+  const custo = o.custo===''||o.custo==null?null:Number(o.custo);
+  const venda = o.venda===''||o.venda==null?null:Number(o.venda);
   const btus = p.btus===''||p.btus==null?'':p.btus;
   const liq = custo==null?null:custo*(1-(Number(o.desconto)||0)/100);
   return Object.assign({},o,{btus,custo,venda,liq,dias:dias(o)});
@@ -260,8 +260,8 @@ function render(){
      '<td>'+esc(o.produto)+'<div class="sub">'+esc(o.cod)+(o.estoqueOrigem?' · '+esc(o.estoqueOrigem):'')+'</div></td>'+
      '<td style="width:78px">'+edP('btus',o.btus,'—')+'</td>'+
      '<td style="width:110px"><input class="ed txt" data-os="'+esc(o.os)+'" data-f="nfFab" value="'+esc(o.nfFab)+'" onchange="salvarOS(this)"></td>'+
-     '<td style="width:110px">'+edP('custo',o.custo==null?'':fmt(o.custo),'0,00')+'</td>'+
-     '<td style="width:110px">'+edP('venda',o.venda==null?'':fmt(o.venda),'0,00')+'</td>'+
+     '<td class="n">'+(o.custo==null?'':fmt(o.custo))+'</td>'+
+     '<td class="n">'+(o.venda==null?'':fmt(o.venda))+'</td>'+
      '<td style="width:70px"><input class="ed" data-os="'+esc(o.os)+'" data-f="desconto" value="'+esc(String(o.desconto||0).replace('.',','))+'" onchange="salvarOS(this)"></td>'+
      '<td class="n"><b>'+(o.liq==null?'':fmt(o.liq))+'</b></td>'+
      '<td style="width:120px"><input class="ed txt" data-os="'+esc(o.os)+'" data-f="setor" value="'+esc(o.setor)+'" onchange="salvarOS(this)"></td>'+
@@ -315,6 +315,7 @@ async function atualizar(){
     const j=await api({action:'atualizar'});
     await carregar();
     toast(j.totalAbertas+' OS em aberto · '+j.novas+' novas · '+j.finalizadas+' finalizadas'+(j.falhas&&j.falhas.length?' · sem detalhe: '+j.falhas.join(', '):''));
+    if(j.avisoCustos) alert('OS atualizadas, mas os custos não foram atualizados:\n'+j.avisoCustos);
   }catch(e){ alert('Não foi possível atualizar:\n'+e.message); }
   finally{ clearInterval(tick); b.textContent=txt; b.disabled=false; ATUALIZANDO=false; }
 }
