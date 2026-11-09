@@ -29,7 +29,8 @@ tbody tr:hover{background:#f8faff}
 td.n,th.n{text-align:right;white-space:nowrap}
 td input.ed{width:100%;font:inherit;border:1px solid transparent;background:#fffbe8;padding:3px 5px;border-radius:5px;text-align:right}
 td input.ed:focus{outline:2px solid var(--pri);background:#fff}
-td input.ed.txt{text-align:left}
+td input.ed.txt,td select.ed{text-align:left}
+td select.ed{width:100%;font:inherit;border:1px solid transparent;background:#fffbe8;padding:3px 4px;border-radius:5px}
 .os{font-weight:700;white-space:nowrap}
 .sub{color:var(--mut);font-size:11px}
 .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#e3edff;color:#1f4fb0}
@@ -207,10 +208,11 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden && PIN &&
 function montarFiltros(){
   const opts = (sel,vals,todos)=>{ const cur=sel.value; sel.innerHTML='<option value="">'+todos+'</option>'+vals.map(v=>'<option>'+esc(v)+'</option>').join(''); sel.value=vals.includes(cur)?cur:''; };
   const u = k => [...new Set(DATA.map(o=>o[k]).filter(Boolean))].sort();
-  opts($('fSetor'),u('setor'),'Todos os setores');
+  opts($('fSetor'),[...new Set(SETORES.concat(u('setor')))],'Todos os setores');
   opts($('fEstoque'),u('estoqueOrigem'),'Todos os estoques');
 }
 
+const SETORES = ['DANIFICADOS','GARANTIA','OUTROS'];
 const COLS = [
  {k:'pedido',t:'Pedido'},{k:'os',t:'OS',num:1},{k:'nf',t:'NF'},{k:'fabricante',t:'Fabric.'},{k:'dias',t:'Dias',num:1},
  {k:'produto',t:'Produto / COD'},{k:'btus',t:'BTUs',num:1},{k:'nfFab',t:'NF fabricante'},
@@ -264,7 +266,8 @@ function render(){
      '<td class="n">'+(o.venda==null?'':fmt(o.venda))+'</td>'+
      '<td style="width:70px"><input class="ed" data-os="'+esc(o.os)+'" data-f="desconto" value="'+esc(String(o.desconto||0).replace('.',','))+'" onchange="salvarOS(this)"></td>'+
      '<td class="n"><b>'+(o.liq==null?'':fmt(o.liq))+'</b></td>'+
-     '<td style="width:120px"><input class="ed txt" data-os="'+esc(o.os)+'" data-f="setor" value="'+esc(o.setor)+'" onchange="salvarOS(this)"></td>'+
+     '<td style="width:130px"><select class="ed txt" data-os="'+esc(o.os)+'" data-f="setor" onchange="salvarOS(this)">'+
+       (SETORES.includes(o.setor)?SETORES:[o.setor].concat(SETORES)).map(x=>'<option'+(x===o.setor?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select></td>'+
      '<td>'+fotos+'</td>'+
      '<td class="def">'+esc(o.defeito)+'</td>'+
      '<td><div>'+esc(o.cliente)+'</div><div class="sub">'+esc(o.vendedor)+(o.parceiro?' · '+esc(o.parceiro):'')+'</div></td>'+
