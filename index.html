@@ -8,10 +8,10 @@
 <style>
 :root{--bg:#f4f6fa;--card:#fff;--bd:#d9dfe9;--tx:#1d2433;--mut:#6b7488;--pri:#1f5fd6;--ok:#16794a;--warn:#b45309;--err:#b42318;
  --inp:#fff;--btnh:#f0f3f9;--line:#edf0f6;--th:#eef2fa;--thtx:#46506a;--rowh:#f8faff;--edit:#fffbe8;--editbd:#e3d9a8;--editf:#fff;
- --tag:#e3edff;--tagtx:#1f4fb0;--oldbg:#fde8e6;--midbg:#fff1da;--okbg:#e4f6ec;--arrow:%23444;--priH:#184fb3;--shade:#0007;color-scheme:light}
+ --novabg:#fff6cf;--novatx:#8a5a00;--tag:#e3edff;--tagtx:#1f4fb0;--oldbg:#fde8e6;--midbg:#fff1da;--okbg:#e4f6ec;--arrow:%23444;--priH:#184fb3;--shade:#0007;color-scheme:light}
 html[data-tema=dark]{--bg:#0f141c;--card:#171d28;--bd:#2c3547;--tx:#e6eaf2;--mut:#8f9bb3;--pri:#4b8bff;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;
  --inp:#1d2432;--btnh:#232c3d;--line:#232b3a;--th:#1d2533;--thtx:#aab5cc;--rowh:#1b2331;--edit:#262a1c;--editbd:#4a4528;--editf:#10151e;
- --tag:#1d3560;--tagtx:#a9c6ff;--oldbg:#4a1f1f;--midbg:#4a3a14;--okbg:#14301f;--arrow:%23ccd;--priH:#3b78e6;--shade:#000a;color-scheme:dark}
+ --novabg:#2d2a12;--novatx:#fbbf24;--tag:#1d3560;--tagtx:#a9c6ff;--oldbg:#4a1f1f;--midbg:#4a3a14;--okbg:#14301f;--arrow:%23ccd;--priH:#3b78e6;--shade:#000a;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;font:14px/1.4 -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx)}
 header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:20}
@@ -58,6 +58,11 @@ tfoot td{position:sticky;bottom:0;background:var(--th);font-weight:700}
 #login input{width:100%;font:inherit;background:var(--inp);color:var(--tx);padding:10px;border:1px solid var(--bd);border-radius:8px;margin:12px 0;text-align:center;letter-spacing:4px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:9px 16px;border-radius:8px;display:none;z-index:60}
 .foto{color:var(--pri)}
+tbody tr.nova td{background:var(--novabg)}
+tbody tr.nova td:first-child{box-shadow:inset 4px 0 0 #f59e0b}
+.tnova{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.4px;background:#f59e0b;color:#1a1200;cursor:pointer;animation:pulsa 1.6s ease-in-out infinite}
+@keyframes pulsa{0%,100%{box-shadow:0 0 0 0 #f59e0b88}50%{box-shadow:0 0 0 5px #f59e0b00}}
+#btnNovas.on{background:#f59e0b;border-color:#f59e0b;color:#1a1200;font-weight:700}
 .lap{padding:0 5px;font-size:13px;line-height:20px;border-radius:5px;opacity:.55;vertical-align:baseline}
 .lap:hover{opacity:1}
 #defTxt{width:100%;font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--inp);color:var(--tx);resize:vertical}
@@ -105,6 +110,8 @@ html[data-tema=dark] td select.ed{background-image:url("data:image/svg+xml;utf8,
   <input id="q" type="search" placeholder="Buscar OS, pedido, NF, produto, cliente, defeito…" oninput="render()">
   <select id="fSetor" onchange="render()"></select>
   <select id="fEstoque" onchange="render()"></select>
+  <button id="btnNovas" style="display:none" onclick="toggleNovas()"></button>
+  <button id="btnVistas" style="display:none" onclick="marcarVistas()">✓ Marcar todas como vistas</button>
 </div>
 <div class="chips" id="chips"></div>
 <div class="wrap">
@@ -213,7 +220,7 @@ function makeParsers(){
    PORTAL
    --------------------------------------------------------------------- */
 const P = makeParsers();
-let PIN = '', DATA = [], PROD = {}, SORT = {k:'os',d:-1}, FAB_FILTER = '', MANUAL = {rep:null, os:[]};
+let NOVAS_ONLY=false, PIN = '', DATA = [], PROD = {}, SORT = {k:'os',d:-1}, FAB_FILTER = '', MANUAL = {rep:null, os:[]};
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -289,7 +296,7 @@ function enriquecer(o){
 function filtrar(){
   const q = $('q').value.toLowerCase().trim(), s=$('fSetor').value, e=$('fEstoque').value;
   let rows = DATA.map(enriquecer).filter(o=>
-    (!s||o.setor===s)&&(!e||o.estoqueOrigem===e)&&(!FAB_FILTER||o.fabricante===FAB_FILTER)&&
+    (!NOVAS_ONLY||o.novo)&&(!s||o.setor===s)&&(!e||o.estoqueOrigem===e)&&(!FAB_FILTER||o.fabricante===FAB_FILTER)&&
     (!q||[o.os,o.pedido,o.nf,o.produto,o.cod,o.cliente,o.defeito,o.fabricante,o.vendedor,o.parceiro,o.nfFab].join(' ').toLowerCase().includes(q)));
   const k=SORT.k, d=SORT.d;
   rows.sort((a,b)=>{ let x=a[k],y=b[k]; const nx=x===''||x==null, ny=y===''||y==null; if(nx&&ny)return 0; if(nx)return 1; if(ny)return -1;
@@ -301,6 +308,10 @@ function render(){
   $('thead').innerHTML = COLS.map(c=>'<th class="'+(c.num?'n':'')+'" onclick="ordenar(\''+c.k+'\')">'+c.t+(SORT.k===c.k?(SORT.d>0?' ▲':' ▼'):'')+'</th>').join('');
   const all = DATA.map(enriquecer);
   $('chips').innerHTML = '';   // os chips de fabricante foram substituídos pelo quadro "Por fabricante" (que acompanha o setor)
+  const nNovas = all.filter(o=>o.novo).length;
+  if(!nNovas) NOVAS_ONLY=false;
+  $('btnNovas').style.display = nNovas?'':'none'; $('btnVistas').style.display = nNovas?'':'none';
+  $('btnNovas').textContent = '● '+nNovas+(nNovas===1?' nova':' novas'); $('btnNovas').classList.toggle('on',NOVAS_ONLY);
   renderKpis(all);
   const rows = filtrar();
   $('empty').style.display = DATA.length?'none':'block';
@@ -308,9 +319,9 @@ function render(){
     const fotos = String(o.fotos||'').split('\n').filter(Boolean).map((u,i)=>'<a class="foto" href="'+esc(u)+'" target="_blank" rel="noopener">📷'+(i+1)+'</a>').join('');
     const dcls = o.dias>=180?'old':o.dias>=90?'mid':'';
     const edP = (f,v,ph)=>'<input class="ed" data-cod="'+esc(o.cod)+'" data-f="'+f+'" value="'+esc(v)+'" placeholder="'+ph+'" onchange="salvarProd(this)" '+(o.cod?'':'disabled')+'>';
-    return '<tr>'+
+    return '<tr class="'+(o.novo?'nova':'')+'">'+
      '<td>'+esc(o.pedido)+'</td>'+
-     '<td class="os n">'+esc(o.os)+'</td>'+
+     '<td class="os n">'+esc(o.os)+(o.novo?'<br><span class="tnova" title="Nova na atualização de '+esc(o.novo)+' — clique para marcar como vista" onclick="marcarVistas(\''+esc(o.os)+'\')">NOVA</span>':'')+'</td>'+
      '<td>'+esc(o.nf)+'</td>'+
      '<td>'+esc(o.fabricante)+'</td>'+
      '<td class="n"><span class="tag '+dcls+'">'+(o.dias===''?'':o.dias+'d')+'</span></td>'+
@@ -354,6 +365,11 @@ function renderKpis(all){
   pf.innerHTML = '<h3>Por fabricante — '+esc(sel||'todos os setores')+' ('+fb.length+' OS)</h3><table><thead><tr><th>Fabricante</th><th class="n">OS</th><th style="width:30%"></th><th class="n">Custo</th><th class="n">Liquidação</th></tr></thead><tbody>'+
     nomes.map(f=>'<tr class="'+(FAB_FILTER===f?'on':'')+'" onclick="filtrarFabricante(\''+esc(f)+'\')"><td><b>'+esc(f)+'</b></td><td class="n">'+g[f].length+'</td><td><div class="bar2" style="width:'+Math.round(g[f].length/max*100)+'%;background:'+(COR_SETOR[sel]||'var(--pri)')+'"></div></td><td class="n">'+fmt(soma(g[f],'custo'))+'</td><td class="n">'+fmt(soma(g[f],'liq'))+'</td></tr>').join('')+
     '</tbody><tfoot><tr><td><b>Total</b></td><td class="n">'+fb.length+'</td><td></td><td class="n">'+fmt(soma(fb,'custo'))+'</td><td class="n">'+fmt(soma(fb,'liq'))+'</td></tr></tfoot></table>';
+}
+function toggleNovas(){ NOVAS_ONLY=!NOVAS_ONLY; render(); }
+async function marcarVistas(os){
+  try{ await api({action:'marcarVistas',os:os?[os]:[]}); DATA.forEach(o=>{ if(!os||o.os===os) o.novo=''; }); render(); }
+  catch(e){ toast('Erro: '+e.message); }
 }
 function filtrarSetor(s){ const f=$('fSetor'); f.value = f.value===s ? '' : s; FAB_FILTER=''; render(); }
 function filtrarFabricante(fab){ FAB_FILTER = FAB_FILTER===fab ? '' : fab; render(); }
@@ -413,7 +429,7 @@ async function atualizar(){
   try{
     const j=await api({action:'atualizar'});
     await carregar();
-    toast(j.totalAbertas+' OS em aberto · '+j.novas+' novas · '+j.finalizadas+' finalizadas'+(j.falhas&&j.falhas.length?' · sem detalhe: '+j.falhas.join(', '):''));
+    toast(j.totalAbertas+' OS em aberto · '+(j.novas?'★ '+j.novas+' NOVA'+(j.novas>1?'S':''):'0 novas')+' · '+j.finalizadas+' finalizadas'+(j.falhas&&j.falhas.length?' · sem detalhe: '+j.falhas.join(', '):''));
     if(j.avisoCustos) alert('OS atualizadas, mas os custos não foram atualizados:\n'+j.avisoCustos);
   }catch(e){ alert('Não foi possível atualizar:\n'+e.message); }
   finally{ clearInterval(tick); b.textContent=txt; b.disabled=false; ATUALIZANDO=false; }
