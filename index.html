@@ -285,9 +285,7 @@ function filtrar(){
 function render(){
   $('thead').innerHTML = COLS.map(c=>'<th class="'+(c.num?'n':'')+'" onclick="ordenar(\''+c.k+'\')">'+c.t+(SORT.k===c.k?(SORT.d>0?' ▲':' ▼'):'')+'</th>').join('');
   const all = DATA.map(enriquecer);
-  const cont = {}; all.forEach(o=>{const f=o.fabricante||'—';cont[f]=(cont[f]||0)+1;});
-  $('chips').innerHTML = '<span class="chip '+(!FAB_FILTER?'on':'')+'" onclick="setFab(\'\')">Todos<b>'+all.length+'</b></span>'+
-    Object.keys(cont).sort().map(f=>'<span class="chip '+(FAB_FILTER===f?'on':'')+'" onclick="setFab(\''+esc(f)+'\')">'+esc(f)+'<b>'+cont[f]+'</b></span>').join('');
+  $('chips').innerHTML = '';   // os chips de fabricante foram substituídos pelo quadro "Por fabricante" (que acompanha o setor)
   renderKpis(all);
   const rows = filtrar();
   $('empty').style.display = DATA.length?'none':'block';
@@ -330,22 +328,19 @@ function renderKpis(all){
       '<div class="m"><span>Custo</span><b>'+fmt(soma(rows,'custo'))+'</b></div>'+
       '<div class="m"><span>Liquidação</span><b>'+fmt(soma(rows,'liq'))+'</b></div></div>';
   }).join('');
-  // por fabricante — só das OS com setor FABRICANTE; recalcula a cada troca de setor
-  const fb = all.filter(o=>o.setor==='FABRICANTE'), pf = $('pf');
+  // por fabricante — acompanha o setor escolhido (sem setor escolhido = todos); recalcula a cada troca
+  const fb = sel ? all.filter(o=>o.setor===sel) : all, pf = $('pf');
   if(!fb.length){ pf.style.display='none'; return; }
   const g = {}; fb.forEach(o=>{ const f=o.fabricante||'—'; (g[f]=g[f]||[]).push(o); });
   const nomes = Object.keys(g).sort((a,b)=>g[b].length-g[a].length||a.localeCompare(b,'pt-BR'));
   const max = g[nomes[0]].length;
   pf.style.display='block';
-  pf.innerHTML = '<h3>Setor Fabricante — por fabricante ('+fb.length+' OS)</h3><table><thead><tr><th>Fabricante</th><th class="n">OS</th><th style="width:30%"></th><th class="n">Custo</th><th class="n">Liquidação</th></tr></thead><tbody>'+
-    nomes.map(f=>'<tr class="'+(FAB_FILTER===f&&sel==='FABRICANTE'?'on':'')+'" onclick="filtrarFabricanteSetor(\''+esc(f)+'\')"><td><b>'+esc(f)+'</b></td><td class="n">'+g[f].length+'</td><td><div class="bar2" style="width:'+Math.round(g[f].length/max*100)+'%"></div></td><td class="n">'+fmt(soma(g[f],'custo'))+'</td><td class="n">'+fmt(soma(g[f],'liq'))+'</td></tr>').join('')+
+  pf.innerHTML = '<h3>Por fabricante — '+esc(sel||'todos os setores')+' ('+fb.length+' OS)</h3><table><thead><tr><th>Fabricante</th><th class="n">OS</th><th style="width:30%"></th><th class="n">Custo</th><th class="n">Liquidação</th></tr></thead><tbody>'+
+    nomes.map(f=>'<tr class="'+(FAB_FILTER===f?'on':'')+'" onclick="filtrarFabricante(\''+esc(f)+'\')"><td><b>'+esc(f)+'</b></td><td class="n">'+g[f].length+'</td><td><div class="bar2" style="width:'+Math.round(g[f].length/max*100)+'%;background:'+(COR_SETOR[sel]||'var(--pri)')+'"></div></td><td class="n">'+fmt(soma(g[f],'custo'))+'</td><td class="n">'+fmt(soma(g[f],'liq'))+'</td></tr>').join('')+
     '</tbody><tfoot><tr><td><b>Total</b></td><td class="n">'+fb.length+'</td><td></td><td class="n">'+fmt(soma(fb,'custo'))+'</td><td class="n">'+fmt(soma(fb,'liq'))+'</td></tr></tfoot></table>';
 }
 function filtrarSetor(s){ const f=$('fSetor'); f.value = f.value===s ? '' : s; FAB_FILTER=''; render(); }
-function filtrarFabricanteSetor(fab){
-  const igual = $('fSetor').value==='FABRICANTE' && FAB_FILTER===fab;
-  $('fSetor').value = igual ? '' : 'FABRICANTE'; FAB_FILTER = igual ? '' : fab; render();
-}
+function filtrarFabricante(fab){ FAB_FILTER = FAB_FILTER===fab ? '' : fab; render(); }
 function ordenar(k){ SORT = {k, d: SORT.k===k?-SORT.d:1}; render(); }
 function setFab(f){ FAB_FILTER=f; render(); }
 
