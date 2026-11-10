@@ -99,6 +99,7 @@ html[data-tema=dark] td select.ed{background-image:url("data:image/svg+xml;utf8,
 <header>
   <h1>OS em Aberto <small id="sub">carregando…</small></h1>
   <button onclick="exportarCSV()">Exportar CSV</button>
+  <button onclick="exportarSistema2()" title="Planilha no modelo do Sistema 2 (respeita os filtros da tela)">Exportar planilha Sistema 2</button>
   <button onclick="abrirManual()" title="Importar arquivos .html salvos do sistema">Importar arquivos</button>
   <button class="pri" id="btnAtu" onclick="atualizar()">⟳ Atualizar</button>
   <button id="btnTema" onclick="alternarTema()" title="Alternar claro/escuro">☀ Claro</button>
@@ -406,6 +407,40 @@ async function gravarDefeito(v){
 }
 function salvarDefeito(){ gravarDefeito($('defTxt').value.trim()); }
 function restaurarDefeito(){ const o=DATA.find(x=>x.os===DEF_OS); if(o) gravarDefeito(o.defeitoSis||''); }
+
+/* exportar planilha no modelo do Sistema 2 (.xlsx) */
+const S2_CAB = ['Pedido','OS','Fabricante','Descrição','Status Item','Cód','BTUs','Preço Custo','Preço Venda','% Desconto','Liquidação','Setor','Fotos','Defeito','Status','Reservado Por','Cód. Danificado','Nº Pedido','Atualizado Em'];
+function linhasSistema2(rows){
+  const brl = n => (n===''||n==null||isNaN(n)) ? '' : 'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const agora = new Date().toISOString();
+  return rows.map(o=>[
+    o.pedido||'', Number(o.os), o.fabricante||'',
+    o.fabCod&&o.cod ? '('+o.fabCod+') '+o.cod+' - '+(o.produto||'') : (o.produto||''),
+    'ABERTO', o.cod ? parseInt(o.cod,10) : '', Number(o.btus)||0,
+    brl(o.custo), brl(o.venda), (Number(o.desconto)||0)/100, brl(o.liq),
+    o.setor||'', String(o.fotos||'').split('\n').filter(Boolean).join(' '), o.defeito||'',
+    'Disponível', null, null, null, agora ]);
+}
+function carregarXLSX(){
+  return window.XLSX ? Promise.resolve() : new Promise((ok,err)=>{
+    const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=ok; s.onerror=()=>err(new Error('Não consegui carregar o gerador de Excel (sem internet?)')); document.head.appendChild(s);
+  });
+}
+async function exportarSistema2(){
+  const rows = filtrar();
+  if(!rows.length){ toast('Nada para exportar com os filtros atuais'); return; }
+  const setor = $('fSetor').value;
+  if(!setor && !confirm('Nenhum setor filtrado: exportar as '+rows.length+' OS de TODOS os setores?\n\n(Para exportar só um setor, clique nele nos cartões ou no filtro e exporte de novo.)')) return;
+  try{
+    await carregarXLSX();
+    const ws = XLSX.utils.aoa_to_sheet([S2_CAB].concat(linhasSistema2(rows)));
+    ws['!cols'] = [12,8,14,60,11,9,9,16,16,12,16,14,50,45,12,16,16,12,26].map(w=>({wch:w}));
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Danificados');
+    XLSX.writeFile(wb, 'danificados_'+new Date().toISOString().slice(0,10)+'.xlsx');
+    toast(rows.length+' OS exportadas'+(setor?' ('+setor+')':''));
+  }catch(e){ alert('Não foi possível exportar:\n'+e.message); }
+}
 
 /* exportar */
 function exportarCSV(){
