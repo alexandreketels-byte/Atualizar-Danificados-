@@ -281,7 +281,7 @@ const COLS = [
  {k:'pedido',t:'Pedido'},{k:'os',t:'OS',num:1},{k:'nf',t:'NF'},{k:'fabricante',t:'Fabric.'},{k:'dias',t:'Dias',num:1},
  {k:'produto',t:'Produto / COD'},{k:'btus',t:'BTUs',num:1},{k:'nfFab',t:'NF fabricante'},
  {k:'custo',t:'Preço custo',num:1},{k:'venda',t:'Preço venda (+30%)',num:1},{k:'desconto',t:'% desc.',num:1},{k:'liq',t:'Liquidação',num:1},
- {k:'setor',t:'Setor'},{k:'fotos',t:'Fotos'},{k:'defeito',t:'Defeito'},{k:'cliente',t:'Cliente'}
+ {k:'setor',t:'Setor'},{k:'fotos',t:'Fotos'},{k:'defeito',t:'Defeito'},{k:'cliente',t:'Cliente'},{k:'numSerie',t:'Nº série'},{k:'osFab',t:'Nº OS fabricante'}
 ];
 
 function dias(o){ const m=/(\d{2})\/(\d{2})\/(\d{4})/.exec(o.dtAbert||''); if(!m) return ''; return Math.max(0,Math.floor((Date.now()-new Date(+m[3],m[2]-1,+m[1]))/864e5)); }
@@ -298,7 +298,7 @@ function filtrar(){
   const q = $('q').value.toLowerCase().trim(), s=$('fSetor').value, e=$('fEstoque').value;
   let rows = DATA.map(enriquecer).filter(o=>
     (!NOVAS_ONLY||o.novo)&&(!s||o.setor===s)&&(!e||o.estoqueOrigem===e)&&(!FAB_FILTER||o.fabricante===FAB_FILTER)&&
-    (!q||[o.os,o.pedido,o.nf,o.produto,o.cod,o.cliente,o.defeito,o.fabricante,o.vendedor,o.parceiro,o.nfFab].join(' ').toLowerCase().includes(q)));
+    (!q||[o.os,o.pedido,o.nf,o.produto,o.cod,o.cliente,o.defeito,o.fabricante,o.vendedor,o.parceiro,o.nfFab,o.numSerie,o.osFab].join(' ').toLowerCase().includes(q)));
   const k=SORT.k, d=SORT.d;
   rows.sort((a,b)=>{ let x=a[k],y=b[k]; const nx=x===''||x==null, ny=y===''||y==null; if(nx&&ny)return 0; if(nx)return 1; if(ny)return -1;
     if(k==='os'||typeof x==='number'||typeof y==='number') return (Number(x)-Number(y))*d; return String(x).localeCompare(String(y),'pt-BR')*d; });
@@ -339,10 +339,12 @@ function render(){
      '<td class="def"><span>'+esc(o.defeito)+'</span> <button class="lap" title="Editar defeito" onclick="editarDefeito(\''+esc(o.os)+'\')">✎</button>'+
        (o.defeitoSis&&o.defeito!==o.defeitoSis?'<div class="sub">editado</div>':'')+'</td>'+
      '<td><div>'+esc(o.cliente)+'</div><div class="sub">'+esc(o.vendedor)+(o.parceiro?' · '+esc(o.parceiro):'')+'</div></td>'+
+     '<td>'+esc(o.numSerie)+'</td>'+
+     '<td style="width:120px"><input class="ed txt" data-os="'+esc(o.os)+'" data-f="osFab" value="'+esc(o.osFab)+'" onchange="salvarOS(this)"></td>'+
     '</tr>';
   }).join('');
   const sum = k => rows.reduce((a,o)=>a+(o[k]||0),0);
-  $('tfoot').innerHTML = rows.length?'<tr><td colspan="8">'+rows.length+' OS</td><td class="n">'+fmt(sum('custo'))+'</td><td class="n">'+fmt(sum('venda'))+'</td><td></td><td class="n">'+fmt(sum('liq'))+'</td><td colspan="4"></td></tr>':'';
+  $('tfoot').innerHTML = rows.length?'<tr><td colspan="8">'+rows.length+' OS</td><td class="n">'+fmt(sum('custo'))+'</td><td class="n">'+fmt(sum('venda'))+'</td><td></td><td class="n">'+fmt(sum('liq'))+'</td><td colspan="6"></td></tr>':'';
 }
 const COR_SETOR = {DANIFICADOS:'#f59e0b',FABRICANTE:'#4b8bff',OUTROS:'#8f9bb3'};
 function renderKpis(all){
@@ -409,7 +411,7 @@ function salvarDefeito(){ gravarDefeito($('defTxt').value.trim()); }
 function restaurarDefeito(){ const o=DATA.find(x=>x.os===DEF_OS); if(o) gravarDefeito(o.defeitoSis||''); }
 
 /* exportar planilha no modelo do Sistema 2 (.csv) */
-const S2_CAB = ['Pedido','OS','Fabricante','Descrição','Status Item','Cód','BTUs','Preço Custo','Preço Venda','% Desconto','Liquidação','Setor','Fotos','Defeito','Status','Reservado Por','Cód. Danificado','Nº Pedido','Atualizado Em'];
+const S2_CAB = ['Pedido','OS','Fabricante','Descrição','Status Item','Cód','BTUs','Preço Custo','Preço Venda','% Desconto','Liquidação','Setor','Fotos','Defeito','Status','Reservado Por','Cód. Danificado','Nº Pedido','Atualizado Em','Nº Série','Nº OS Fabricante'];
 function linhasSistema2(rows){
   const brl = n => (n===''||n==null||isNaN(n)) ? '' : 'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const agora = new Date().toISOString();
@@ -419,7 +421,7 @@ function linhasSistema2(rows){
     'ABERTO', o.cod ? parseInt(o.cod,10) : '', Number(o.btus)||0,
     brl(o.custo), brl(o.venda), (Number(o.desconto)||0)/100, brl(o.liq),
     o.setor||'', String(o.fotos||'').split('\n').filter(Boolean).join(' '), o.defeito||'',
-    'Disponível', null, null, null, agora ]);
+    'Disponível', null, null, null, agora, o.numSerie||'', o.osFab||'' ]);
 }
 function exportarSistema2(){
   const rows = filtrar();
@@ -436,9 +438,9 @@ function exportarSistema2(){
 /* exportar */
 function exportarCSV(){
   const rows=filtrar();
-  const cab=['Pedido','OS','NF','Fabricante','Produto','COD','BTUs','NF fabricante','Preço custo','Preço venda','% desconto','Liquidação','Setor','Fotos','Defeito','Cliente','Dt abertura'];
+  const cab=['Pedido','OS','NF','Fabricante','Produto','COD','BTUs','NF fabricante','Preço custo','Preço venda','% desconto','Liquidação','Setor','Fotos','Defeito','Cliente','Dt abertura','Nº série','Nº OS fabricante'];
   const n=v=>v==null||v===''?'':Number(v).toFixed(2).replace('.',',');
-  const lines=[cab].concat(rows.map(o=>[o.pedido,o.os,o.nf,o.fabricante,o.produto,o.cod,o.btus,o.nfFab,n(o.custo),n(o.venda),String(o.desconto||0).replace('.',',')+'%',n(o.liq),o.setor,String(o.fotos||'').replace(/\n/g,' '),o.defeito,o.cliente,o.dtAbert]));
+  const lines=[cab].concat(rows.map(o=>[o.pedido,o.os,o.nf,o.fabricante,o.produto,o.cod,o.btus,o.nfFab,n(o.custo),n(o.venda),String(o.desconto||0).replace('.',',')+'%',n(o.liq),o.setor,String(o.fotos||'').replace(/\n/g,' '),o.defeito,o.cliente,o.dtAbert,o.numSerie,o.osFab]));
   const csv='﻿'+lines.map(l=>l.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
   a.download='os_em_aberto_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
