@@ -83,6 +83,16 @@ tbody tr.nova td:first-child{box-shadow:inset 4px 0 0 #f59e0b}
 .pf tr.on td{background:var(--th)}
 .pf .bar2{height:8px;border-radius:4px;background:var(--pri);min-width:2px}
 
+#menuBtn{padding:6px 11px;font-size:18px;line-height:1}
+.menuwrap{position:relative}
+.menu{position:absolute;left:0;top:calc(100% + 6px);min-width:240px;background:var(--card);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px var(--shade);padding:6px;display:none;z-index:40}
+.menu.on{display:block}
+.menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 12px;border-radius:7px}
+.menu button:hover,.menu button.on{background:var(--th)}
+.kpis.st{padding-top:6px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.kpis.st .kpi{padding:9px 12px}.kpis.st .kpi .v{font-size:24px}
+.stt{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600;color:#fff;background:var(--c,#8f9bb3);white-space:nowrap}
+#hist{display:none}
 html[data-tema=dark] td select.ed{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23ccd' stroke-width='2'/></svg>")}
 </style>
 </head>
@@ -97,7 +107,12 @@ html[data-tema=dark] td select.ed{background-image:url("data:image/svg+xml;utf8,
 
 <div id="app" style="display:none">
 <header>
-  <h1>OS em Aberto <small id="sub">carregando…</small></h1>
+  <div class="menuwrap"><button id="menuBtn" onclick="toggleMenu(event)" title="Menu">☰</button>
+    <div class="menu" id="menu">
+      <button id="mAberto" onclick="irPara('aberto')">📋 OS em aberto</button>
+      <button id="mHist" onclick="irPara('hist')">🗂 Histórico (finalizado)</button>
+    </div></div>
+  <h1><span id="titulo">OS em Aberto</span> <small id="sub">carregando…</small></h1>
   <button onclick="exportarCSV()">Exportar CSV</button>
   <button onclick="exportarSistema2()" title="CSV no modelo do Sistema 2 (respeita os filtros da tela)">Exportar CSV Sistema 2</button>
   <button onclick="abrirManual()" title="Importar arquivos .html salvos do sistema">Importar arquivos</button>
@@ -106,10 +121,13 @@ html[data-tema=dark] td select.ed{background-image:url("data:image/svg+xml;utf8,
   <button onclick="sair()" title="Sair">Sair</button>
 </header>
 <div class="kpis" id="kpis"></div>
+<div class="kpis st" id="kpisSt"></div>
 <div class="pf" id="pf" style="display:none"></div>
+<div id="vAberto">
 <div class="bar">
   <input id="q" type="search" placeholder="Buscar OS, pedido, NF, produto, cliente, defeito…" oninput="render()">
   <select id="fSetor" onchange="render()"></select>
+  <select id="fStatus" onchange="render()"></select>
   <select id="fEstoque" onchange="render()"></select>
   <button id="btnNovas" style="display:none" onclick="toggleNovas()"></button>
   <button id="btnVistas" style="display:none" onclick="marcarVistas()">✓ Marcar todas como vistas</button>
@@ -122,6 +140,21 @@ html[data-tema=dark] td select.ed{background-image:url("data:image/svg+xml;utf8,
   <tfoot id="tfoot"></tfoot>
 </table>
 <div id="empty" class="empty" style="display:none">Nenhuma OS em aberto. Clique em “Atualizar” para importar do sistema.</div>
+</div>
+</div>
+
+<div id="hist">
+<div class="bar">
+  <input id="qh" type="search" placeholder="Buscar OS, pedido, NF, produto, cliente, nº série…" oninput="renderHist()">
+  <select id="hSetor" onchange="renderHist()"></select>
+  <select id="hStatus" onchange="renderHist()"></select>
+  <button onclick="exportarHist()">Exportar CSV</button>
+</div>
+<div class="wrap"><table style="min-width:1300px">
+  <thead><tr id="theadH"></tr></thead><tbody id="tbodyH"></tbody><tfoot id="tfootH"></tfoot>
+</table>
+<div id="emptyH" class="empty" style="display:none">Nenhuma OS encerrada registrada ainda. Quando uma OS sair do relatório do sistema, ela aparece aqui.</div>
+</div>
 </div>
 </div>
 
@@ -267,21 +300,25 @@ async function carregar(){
   $('sub').textContent = j.os.length+' OS em andamento'+(j.atualizado?' · atualizado em '+j.atualizado:'');
   montarFiltros(); render();
 }
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden && PIN && $('app').style.display!=='none') carregar().catch(()=>{}); });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && PIN && VIEW==='aberto' && $('app').style.display!=='none') carregar().catch(()=>{}); });
 
 function montarFiltros(){
   const opts = (sel,vals,todos)=>{ const cur=sel.value; sel.innerHTML='<option value="">'+todos+'</option>'+vals.map(v=>'<option>'+esc(v)+'</option>').join(''); sel.value=vals.includes(cur)?cur:''; };
   const u = k => [...new Set(DATA.map(o=>o[k]).filter(Boolean))].sort();
   opts($('fSetor'),[...new Set(SETORES.concat(u('setor')))],'Todos os setores');
   opts($('fEstoque'),u('estoqueOrigem'),'Todos os estoques');
+  opts($('fStatus'),SITUACOES,'Todos os status');
 }
 
 const SETORES = ['DANIFICADOS','FABRICANTE','OUTROS'];
+const SITUACOES = ['Disponível','Reservado','Convertido','Pedido lançado','Separação solicitada'];
+const COR_SIT = {'Disponível':'#16a34a','Reservado':'#f59e0b','Convertido':'#8b5cf6','Pedido lançado':'#0ea5e9','Separação solicitada':'#ec4899'};
+const sit = o => SITUACOES.includes(o.situacao) ? o.situacao : SITUACOES[0];
 const COLS = [
  {k:'pedido',t:'Pedido'},{k:'os',t:'OS',num:1},{k:'nf',t:'NF'},{k:'fabricante',t:'Fabric.'},{k:'dias',t:'Dias',num:1},
  {k:'produto',t:'Produto / COD'},{k:'btus',t:'BTUs',num:1},{k:'nfFab',t:'NF fabricante'},
  {k:'custo',t:'Preço custo',num:1},{k:'venda',t:'Preço venda (+30%)',num:1},{k:'desconto',t:'% desc.',num:1},{k:'liq',t:'Liquidação',num:1},
- {k:'setor',t:'Setor'},{k:'fotos',t:'Fotos'},{k:'defeito',t:'Defeito'},{k:'cliente',t:'Cliente'},{k:'numSerie',t:'Nº série'},{k:'osFab',t:'Nº OS fabricante'}
+ {k:'setor',t:'Setor'},{k:'situacao',t:'Status'},{k:'fotos',t:'Fotos'},{k:'defeito',t:'Defeito'},{k:'cliente',t:'Cliente'},{k:'numSerie',t:'Nº série'},{k:'osFab',t:'Nº OS fabricante'}
 ];
 
 function dias(o){ const m=/(\d{2})\/(\d{2})\/(\d{4})/.exec(o.dtAbert||''); if(!m) return ''; return Math.max(0,Math.floor((Date.now()-new Date(+m[3],m[2]-1,+m[1]))/864e5)); }
@@ -291,13 +328,13 @@ function enriquecer(o){
   const venda = o.venda===''||o.venda==null?null:Number(o.venda);
   const btus = p.btus===''||p.btus==null?'':p.btus;
   const liq = custo==null?null:custo*(1-(Number(o.desconto)||0)/100);
-  return Object.assign({},o,{btus,custo,venda,liq,dias:dias(o)});
+  return Object.assign({},o,{btus,custo,venda,liq,dias:dias(o),situacao:sit(o)});
 }
 
 function filtrar(){
-  const q = $('q').value.toLowerCase().trim(), s=$('fSetor').value, e=$('fEstoque').value;
+  const q = $('q').value.toLowerCase().trim(), s=$('fSetor').value, e=$('fEstoque').value, st=$('fStatus').value;
   let rows = DATA.map(enriquecer).filter(o=>
-    (!NOVAS_ONLY||o.novo)&&(!s||o.setor===s)&&(!e||o.estoqueOrigem===e)&&(!FAB_FILTER||o.fabricante===FAB_FILTER)&&
+    (!NOVAS_ONLY||o.novo)&&(!s||o.setor===s)&&(!st||o.situacao===st)&&(!e||o.estoqueOrigem===e)&&(!FAB_FILTER||o.fabricante===FAB_FILTER)&&
     (!q||[o.os,o.pedido,o.nf,o.produto,o.cod,o.cliente,o.defeito,o.fabricante,o.vendedor,o.parceiro,o.nfFab,o.numSerie,o.osFab].join(' ').toLowerCase().includes(q)));
   const k=SORT.k, d=SORT.d;
   rows.sort((a,b)=>{ let x=a[k],y=b[k]; const nx=x===''||x==null, ny=y===''||y==null; if(nx&&ny)return 0; if(nx)return 1; if(ny)return -1;
@@ -335,6 +372,8 @@ function render(){
      '<td class="n"><b>'+(o.liq==null?'':fmt(o.liq))+'</b></td>'+
      '<td style="min-width:150px"><select class="ed txt" data-os="'+esc(o.os)+'" data-f="setor" onchange="salvarOS(this)">'+
        (SETORES.includes(o.setor)?SETORES:[o.setor].concat(SETORES)).map(x=>'<option'+(x===o.setor?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select></td>'+
+     '<td style="min-width:170px"><select class="ed txt" data-os="'+esc(o.os)+'" data-f="situacao" onchange="salvarOS(this)" style="border-left:4px solid '+COR_SIT[o.situacao]+'">'+
+       SITUACOES.map(x=>'<option'+(x===o.situacao?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select></td>'+
      '<td>'+fotos+'</td>'+
      '<td class="def"><span>'+esc(o.defeito)+'</span> <button class="lap" title="Editar defeito" onclick="editarDefeito(\''+esc(o.os)+'\')">✎</button>'+
        (o.defeitoSis&&o.defeito!==o.defeitoSis?'<div class="sub">editado</div>':'')+'</td>'+
@@ -344,28 +383,36 @@ function render(){
     '</tr>';
   }).join('');
   const sum = k => rows.reduce((a,o)=>a+(o[k]||0),0);
-  $('tfoot').innerHTML = rows.length?'<tr><td colspan="8">'+rows.length+' OS</td><td class="n">'+fmt(sum('custo'))+'</td><td class="n">'+fmt(sum('venda'))+'</td><td></td><td class="n">'+fmt(sum('liq'))+'</td><td colspan="6"></td></tr>':'';
+  $('tfoot').innerHTML = rows.length?'<tr><td colspan="8">'+rows.length+' OS</td><td class="n">'+fmt(sum('custo'))+'</td><td class="n">'+fmt(sum('venda'))+'</td><td></td><td class="n">'+fmt(sum('liq'))+'</td><td colspan="7"></td></tr>':'';
 }
 const COR_SETOR = {DANIFICADOS:'#f59e0b',FABRICANTE:'#4b8bff',OUTROS:'#8f9bb3'};
 function renderKpis(all){
   const setores = SETORES.concat([...new Set(all.map(o=>o.setor).filter(s=>s&&!SETORES.includes(s)))]);
   const soma = (rows,k)=>rows.reduce((a,o)=>a+(o[k]||0),0);
-  const sel = $('fSetor').value;
+  const sel = $('fSetor').value, selSt = $('fStatus').value;
+  const doSt = all.filter(o=>!selSt||o.situacao===selSt);       // cartões de setor respeitam o status escolhido
+  const doSetor = all.filter(o=>!sel||o.setor===sel);           // cartões de status respeitam o setor escolhido
   $('kpis').innerHTML = setores.map(s=>{
-    const rows = all.filter(o=>o.setor===s);
+    const rows = doSt.filter(o=>o.setor===s);
     return '<div class="kpi '+(sel===s?'on':'')+'" style="--c:'+(COR_SETOR[s]||'#8f9bb3')+'" onclick="filtrarSetor(\''+esc(s)+'\')" title="Clique para filtrar">'+
       '<div class="t">'+esc(s)+'</div><div class="v">'+rows.length+'<small>OS</small></div>'+
       '<div class="m"><span>Custo</span><b>'+fmt(soma(rows,'custo'))+'</b></div>'+
       '<div class="m"><span>Liquidação</span><b>'+fmt(soma(rows,'liq'))+'</b></div></div>';
   }).join('');
-  // por fabricante — acompanha o setor escolhido (sem setor escolhido = todos); recalcula a cada troca
-  const fb = sel ? all.filter(o=>o.setor===sel) : all, pf = $('pf');
+  $('kpisSt').innerHTML = SITUACOES.map(s=>{
+    const rows = doSetor.filter(o=>o.situacao===s);
+    return '<div class="kpi '+(selSt===s?'on':'')+'" style="--c:'+COR_SIT[s]+'" onclick="filtrarStatus(\''+esc(s)+'\')" title="Clique para filtrar por status">'+
+      '<div class="t">'+esc(s)+'</div><div class="v">'+rows.length+'<small>OS</small></div>'+
+      '<div class="m"><span>Liquidação</span><b>'+fmt(soma(rows,'liq'))+'</b></div></div>';
+  }).join('');
+  // por fabricante — acompanha o setor e o status escolhidos (sem filtro = todos); recalcula a cada troca
+  const fb = all.filter(o=>(!sel||o.setor===sel)&&(!selSt||o.situacao===selSt)), pf = $('pf');
   if(!fb.length){ pf.style.display='none'; return; }
   const g = {}; fb.forEach(o=>{ const f=o.fabricante||'—'; (g[f]=g[f]||[]).push(o); });
   const nomes = Object.keys(g).sort((a,b)=>g[b].length-g[a].length||a.localeCompare(b,'pt-BR'));
   const max = g[nomes[0]].length;
   pf.style.display='block';
-  pf.innerHTML = '<h3>Por fabricante — '+esc(sel||'todos os setores')+' ('+fb.length+' OS)</h3><table><thead><tr><th>Fabricante</th><th class="n">OS</th><th style="width:30%"></th><th class="n">Custo</th><th class="n">Liquidação</th></tr></thead><tbody>'+
+  pf.innerHTML = '<h3>Por fabricante — '+esc((sel||'todos os setores')+(selSt?' · '+selSt:''))+' ('+fb.length+' OS)</h3><table><thead><tr><th>Fabricante</th><th class="n">OS</th><th style="width:30%"></th><th class="n">Custo</th><th class="n">Liquidação</th></tr></thead><tbody>'+
     nomes.map(f=>'<tr class="'+(FAB_FILTER===f?'on':'')+'" onclick="filtrarFabricante(\''+esc(f)+'\')"><td><b>'+esc(f)+'</b></td><td class="n">'+g[f].length+'</td><td><div class="bar2" style="width:'+Math.round(g[f].length/max*100)+'%;background:'+(COR_SETOR[sel]||'var(--pri)')+'"></div></td><td class="n">'+fmt(soma(g[f],'custo'))+'</td><td class="n">'+fmt(soma(g[f],'liq'))+'</td></tr>').join('')+
     '</tbody><tfoot><tr><td><b>Total</b></td><td class="n">'+fb.length+'</td><td></td><td class="n">'+fmt(soma(fb,'custo'))+'</td><td class="n">'+fmt(soma(fb,'liq'))+'</td></tr></tfoot></table>';
 }
@@ -374,6 +421,7 @@ async function marcarVistas(os){
   try{ await api({action:'marcarVistas',os:os?[os]:[]}); DATA.forEach(o=>{ if(!os||o.os===os) o.novo=''; }); render(); }
   catch(e){ toast('Erro: '+e.message); }
 }
+function filtrarStatus(s){ const f=$('fStatus'); f.value = f.value===s ? '' : s; FAB_FILTER=''; render(); }
 function filtrarSetor(s){ const f=$('fSetor'); f.value = f.value===s ? '' : s; FAB_FILTER=''; render(); }
 function filtrarFabricante(fab){ FAB_FILTER = FAB_FILTER===fab ? '' : fab; render(); }
 function ordenar(k){ SORT = {k, d: SORT.k===k?-SORT.d:1}; render(); }
@@ -421,7 +469,7 @@ function linhasSistema2(rows){
     'ABERTO', o.cod ? parseInt(o.cod,10) : '', Number(o.btus)||0,
     brl(o.custo), brl(o.venda), (Number(o.desconto)||0)/100, brl(o.liq),
     o.setor||'', String(o.fotos||'').split('\n').filter(Boolean).join(' '), o.defeito||'',
-    'Disponível', null, null, null, agora, o.numSerie||'', o.osFab||'' ]);
+    o.situacao||'Disponível', null, null, null, agora, o.numSerie||'', o.osFab||'' ]);
 }
 function exportarSistema2(){
   const rows = filtrar();
@@ -435,12 +483,65 @@ function exportarSistema2(){
   toast(rows.length+' OS exportadas'+(setor?' ('+setor+')':''));
 }
 
+/* menu hambúrguer + Histórico (OS encerradas) */
+let VIEW='aberto', HIST=[];
+function toggleMenu(e){ if(e) e.stopPropagation(); $('menu').classList.toggle('on'); }
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+async function irPara(v){
+  $('menu').classList.remove('on'); VIEW=v;
+  $('mAberto').classList.toggle('on',v==='aberto'); $('mHist').classList.toggle('on',v==='hist');
+  const ab = v==='aberto';
+  ['kpis','kpisSt','vAberto'].forEach(i=>$(i).style.display = ab?'':'none');
+  if(!ab) $('pf').style.display='none';
+  $('hist').style.display = ab?'none':'block';
+  $('btnAtu').style.display = ab?'':'none';
+  $('titulo').textContent = ab?'OS em Aberto':'Histórico (finalizado)';
+  if(ab){ render(); $('sub').textContent = DATA.length+' OS em andamento'; return; }
+  $('sub').textContent='carregando…';
+  try{ const j=await api({action:'historico'}); HIST=j.os.map(o=>Object.assign({},o,{situacao:sit(o)})); montarFiltrosHist(); renderHist(); }
+  catch(e){ $('sub').textContent='erro'; toast('Erro: '+e.message); }
+}
+function montarFiltrosHist(){
+  const fill=(id,vals,todos)=>{ const s=$(id),cur=s.value; s.innerHTML='<option value="">'+todos+'</option>'+vals.map(v=>'<option>'+esc(v)+'</option>').join(''); s.value=vals.includes(cur)?cur:''; };
+  fill('hSetor',[...new Set(SETORES.concat(HIST.map(o=>o.setor).filter(Boolean)))],'Todos os setores');
+  fill('hStatus',SITUACOES,'Todos os status');
+}
+const COLS_H=['OS','Pedido','NF','Fabric.','Produto / COD','Nº série','Nº OS fabricante','Setor','Status','Preço custo','Liquidação','Defeito','Cliente','Encerrada em'];
+function dataOrd(s){ const m=/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/.exec(s||''); return m? +(m[3]+m[2]+m[1]+(m[4]||'00')+(m[5]||'00')) : 0; }
+function filtrarHist(){
+  const q=$('qh').value.toLowerCase().trim(), s=$('hSetor').value, st=$('hStatus').value;
+  return HIST.map(enriquecer).filter(o=>(!s||o.setor===s)&&(!st||o.situacao===st)&&
+    (!q||[o.os,o.pedido,o.nf,o.produto,o.cod,o.cliente,o.defeito,o.fabricante,o.nfFab,o.numSerie,o.osFab].join(' ').toLowerCase().includes(q)))
+    .sort((a,b)=>dataOrd(b.encerradaEm)-dataOrd(a.encerradaEm)||Number(b.os)-Number(a.os));
+}
+function renderHist(){
+  $('theadH').innerHTML=COLS_H.map(t=>'<th style="cursor:default">'+t+'</th>').join('');
+  const rows=filtrarHist();
+  $('sub').textContent=HIST.length+' OS encerradas registradas'+(rows.length!==HIST.length?' · '+rows.length+' no filtro':'');
+  $('emptyH').style.display=HIST.length?'none':'block';
+  $('tbodyH').innerHTML=rows.map(o=>'<tr>'+
+    '<td class="os n">'+esc(o.os)+'</td><td>'+esc(o.pedido)+'</td><td>'+esc(o.nf)+'</td><td>'+esc(o.fabricante)+'</td>'+
+    '<td>'+esc(o.produto)+'<div class="sub">'+esc(o.cod)+'</div></td><td>'+esc(o.numSerie)+'</td><td>'+esc(o.osFab)+'</td><td>'+esc(o.setor)+'</td>'+
+    '<td><span class="stt" style="--c:'+COR_SIT[o.situacao]+'">'+esc(o.situacao)+'</span></td>'+
+    '<td class="n">'+(o.custo==null?'':fmt(o.custo))+'</td><td class="n">'+(o.liq==null?'':fmt(o.liq))+'</td>'+
+    '<td class="def">'+esc(o.defeito)+'</td><td>'+esc(o.cliente)+'</td><td style="white-space:nowrap">'+esc(o.encerradaEm)+'</td></tr>').join('');
+  $('tfootH').innerHTML=rows.length?'<tr><td colspan="14">'+rows.length+' OS</td></tr>':'';
+}
+function exportarHist(){
+  const rows=filtrarHist(); if(!rows.length){ toast('Nada para exportar'); return; }
+  const n=v=>v==null||v===''?'':Number(v).toFixed(2).replace('.',',');
+  const lines=[COLS_H].concat(rows.map(o=>[o.os,o.pedido,o.nf,o.fabricante,(o.cod?o.cod+' - ':'')+o.produto,o.numSerie,o.osFab,o.setor,o.situacao,n(o.custo),n(o.liq),o.defeito,o.cliente,o.encerradaEm]));
+  const csv='\ufeff'+lines.map(l=>l.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='os_historico_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+
 /* exportar */
 function exportarCSV(){
   const rows=filtrar();
-  const cab=['Pedido','OS','NF','Fabricante','Produto','COD','BTUs','NF fabricante','Preço custo','Preço venda','% desconto','Liquidação','Setor','Fotos','Defeito','Cliente','Dt abertura','Nº série','Nº OS fabricante'];
+  const cab=['Pedido','OS','NF','Fabricante','Produto','COD','BTUs','NF fabricante','Preço custo','Preço venda','% desconto','Liquidação','Setor','Fotos','Defeito','Cliente','Dt abertura','Nº série','Nº OS fabricante','Status'];
   const n=v=>v==null||v===''?'':Number(v).toFixed(2).replace('.',',');
-  const lines=[cab].concat(rows.map(o=>[o.pedido,o.os,o.nf,o.fabricante,o.produto,o.cod,o.btus,o.nfFab,n(o.custo),n(o.venda),String(o.desconto||0).replace('.',',')+'%',n(o.liq),o.setor,String(o.fotos||'').replace(/\n/g,' '),o.defeito,o.cliente,o.dtAbert,o.numSerie,o.osFab]));
+  const lines=[cab].concat(rows.map(o=>[o.pedido,o.os,o.nf,o.fabricante,o.produto,o.cod,o.btus,o.nfFab,n(o.custo),n(o.venda),String(o.desconto||0).replace('.',',')+'%',n(o.liq),o.setor,String(o.fotos||'').replace(/\n/g,' '),o.defeito,o.cliente,o.dtAbert,o.numSerie,o.osFab,o.situacao]));
   const csv='﻿'+lines.map(l=>l.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
   a.download='os_em_aberto_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
